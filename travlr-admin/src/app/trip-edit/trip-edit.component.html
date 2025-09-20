@@ -1,0 +1,13 @@
+<div *ngIf="!editing">
+  <button (click)="editing = true">Edit</button>
+  <button (click)="deleteTrip()">Delete</button>
+</div>
+
+<div *ngIf="editing">
+  <input [(ngModel)]="trip.title" placeholder="Title" />
+  <input [(ngModel)]="trip.location" placeholder="Location" />
+  <input [(ngModel)]="trip.description" placeholder="Description" />
+  <input [(ngModel)]="trip.price" placeholder="Price" />
+  <button (click)="updateTrip()">Save</button>
+  <button (click)="editing = false">Cancel</button>
+</div>

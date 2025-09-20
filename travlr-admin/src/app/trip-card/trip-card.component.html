@@ -1,0 +1,15 @@
+<div *ngIf="!editing">
+  <h3>{{ trip.title }} - {{ trip.location }}</h3>
+  <p>{{ trip.description }}</p>
+  <p><strong>${{ trip.price }}</strong></p>
+  <button (click)="enableEdit()">Edit</button>
+  <button (click)="deleteTrip()">Delete</button>
+</div>
+
+<div *ngIf="editing">
+  <input [(ngModel)]="editedTrip.title" placeholder="Title" />
+  <input [(ngModel)]="editedTrip.location" placeholder="Location" />
+  <input [(ngModel)]="editedTrip.description" placeholder="Description" />
+  <input [(ngModel)]="editedTrip.price" type="number" placeholder="Price" />
+  <button (click)="saveEdit()">Save</button>
+</div>

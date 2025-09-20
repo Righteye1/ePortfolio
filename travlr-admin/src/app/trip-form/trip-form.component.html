@@ -1,0 +1,8 @@
+<form (ngSubmit)="addTrip()" #f="ngForm" style="display:flex; gap:8px; align-items:center; margin:12px 0;">
+  <input name="title" [(ngModel)]="model.title" placeholder="Title" required style="min-width:180px;">
+  <input name="location" [(ngModel)]="(model as any).location" placeholder="Location" style="min-width:140px;">
+  <input name="description" [(ngModel)]="model.description" placeholder="Description" style="flex:1;">
+  <input name="price" type="number" [(ngModel)]="model.price" placeholder="Price" style="min-width:80px;">
+  <input name="date" [(ngModel)]="(model as any).date" placeholder="YYYY-MM-DD" style="min-width:120px;">
+  <button type="submit" [disabled]="f.invalid">Add Trip</button>
+</form>
