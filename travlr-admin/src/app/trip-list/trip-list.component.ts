@@ -3,6 +3,8 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Trip, TripDataService } from '../trip-data.service';
 
+type Toast = { id: number; msg: string; kind: 'ok' | 'err' };
+
 @Component({
   selector: 'app-trip-list',
   standalone: true,
@@ -12,25 +14,56 @@ import { Trip, TripDataService } from '../trip-data.service';
 export class TripListComponent implements OnInit {
   trips: Trip[] = [];
 
-  // Add row form at the top of the table
+  // Add row form
   addForm: any = { title: '', location: '', description: '', price: 0, date: '' };
 
   // Inline edit state
   editingId: string | null = null;
   editForm: any = {};
 
+  // UX helpers
+  loading = false;
+  saving = false;
+  creating = false;
+  deletingId: string | null = null;
+
+  toasts: Toast[] = [];
+  private toastSeq = 1;
+
   constructor(private svc: TripDataService) { }
 
   ngOnInit() {
+    // restore theme
+    const saved = localStorage.getItem('theme') || 'dark';
+    document.documentElement.setAttribute('data-theme', saved);
     this.reload();
   }
 
+  /* ------------ Theme ------------ */
+  toggleTheme() {
+    const cur = document.documentElement.getAttribute('data-theme') || 'dark';
+    const next = cur === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    localStorage.setItem('theme', next);
+    this.toast(`Theme: ${next}`, 'ok');
+  }
+
+  /* ------------ Toasts ------------ */
+  toast(msg: string, kind: 'ok' | 'err' = 'ok', ms = 2600) {
+    const id = this.toastSeq++;
+    this.toasts.push({ id, msg, kind });
+    setTimeout(() => this.toasts = this.toasts.filter(t => t.id !== id), ms);
+  }
+
+  /* ------------ Data ------------ */
   reload() {
+    this.loading = true;
     this.svc.getTrips().subscribe({
-      next: (list) => { this.trips = list || []; },
+      next: (list) => { this.trips = list || []; this.loading = false; },
       error: (err) => {
+        this.loading = false;
         console.error('[GET trips error]', err);
-        alert(`Failed to load trips: ${err.status} ${err.statusText}`);
+        this.toast(`Failed to load trips: ${err.status} ${err.statusText}`, 'err', 4000);
       }
     });
   }
@@ -38,10 +71,7 @@ export class TripListComponent implements OnInit {
   // Begin editing a row
   startEdit(t: any) {
     this.editingId = t?._id ?? null;
-
-    // If an ISO date exists, show it as YYYY-MM-DD in the input; else show empty
     const dateStr = t?.date ? new Date(t.date).toISOString().slice(0, 10) : '';
-
     this.editForm = {
       _id: t?._id,
       title: (t?.title ?? '').trim(),
@@ -57,7 +87,7 @@ export class TripListComponent implements OnInit {
     this.editForm = {};
   }
 
-  // Helper: build payload, omitting empty/invalid date and normalizing strings
+  // Helper: build payload
   private buildPayload(src: any): any {
     const payload: any = {
       title: (src.title ?? '').trim(),
@@ -65,79 +95,74 @@ export class TripListComponent implements OnInit {
       description: (src.description ?? '').trim(),
       price: Number(src.price ?? 0)
     };
-
     const d = (src.date ?? '').trim();
     if (d) {
-      // Convert YYYY-MM-DD -> ISO 8601
       const iso = new Date(`${d}T00:00:00.000Z`).toISOString();
-      if (!isNaN(Date.parse(iso))) {
-        payload.date = iso;
-      }
-      // If parse fails, we simply omit date so backend won't reject it
+      if (!isNaN(Date.parse(iso))) payload.date = iso;
     }
-
     return payload;
   }
 
-  // Save current edit row
+  /* ------------ Save / Create / Delete ------------ */
   saveEdit() {
     const id: string | undefined = this.editForm?._id || (this.editingId as any);
-    if (!id) {
-      alert('Cannot save: this trip has no _id (older/legacy row). Create a new one with Add Trip, then delete the old row.');
-      return;
-    }
+    if (!id) { this.toast('Cannot save: row has no _id', 'err'); return; }
 
     const payload = this.buildPayload(this.editForm);
-    if (!payload.title) {
-      alert('Title is required.');
-      return;
-    }
+    if (!payload.title) { this.toast('Title is required', 'err'); return; }
 
+    this.saving = true;
     this.svc.updateTrip(id, payload).subscribe({
       next: () => {
+        this.saving = false;
         this.cancelEdit();
         this.reload();
+        this.toast('Trip updated', 'ok');
       },
       error: (err) => {
-        console.error('[PUT /api/trips/:id error]', err);
-        alert(`Save failed: ${err.status} ${err.statusText}\n${JSON.stringify(err.error)}`);
+        this.saving = false;
+        console.error('[PUT] error', err);
+        this.toast(`Save failed: ${err.status} ${err.statusText}`, 'err', 4000);
       }
     });
   }
 
-  // Add a new trip from the top row
   add() {
     const payload = this.buildPayload(this.addForm);
-    if (!payload.title) {
-      alert('Title is required.');
-      return;
-    }
+    if (!payload.title) { this.toast('Title is required', 'err'); return; }
 
+    this.creating = true;
     this.svc.addTrip(payload).subscribe({
       next: () => {
+        this.creating = false;
         this.addForm = { title: '', location: '', description: '', price: 0, date: '' };
         this.reload();
+        this.toast('Trip created', 'ok');
       },
       error: (err) => {
-        console.error('[POST /api/trips error]', err);
-        alert(`Create failed: ${err.status} ${err.statusText}\n${JSON.stringify(err.error)}`);
+        this.creating = false;
+        console.error('[POST] error', err);
+        this.toast(`Create failed: ${err.status} ${err.statusText}`, 'err', 4000);
       }
     });
   }
 
-  // Delete row
   remove(t: any) {
     const id = t?._id;
-    if (!id) {
-      alert('Cannot delete: this trip has no _id (older/legacy row).');
-      return;
-    }
+    if (!id) { this.toast('Cannot delete: row has no _id', 'err'); return; }
+    if (!confirm(`Delete "${t.title || 'this trip'}"?`)) return;
 
+    this.deletingId = id;
     this.svc.deleteTrip(id).subscribe({
-      next: () => this.reload(),
+      next: () => {
+        this.deletingId = null;
+        this.reload();
+        this.toast('Trip deleted', 'ok');
+      },
       error: (err) => {
-        console.error('[DELETE /api/trips/:id error]', err);
-        alert(`Delete failed: ${err.status} ${err.statusText}\n${JSON.stringify(err.error)}`);
+        this.deletingId = null;
+        console.error('[DELETE] error', err);
+        this.toast(`Delete failed: ${err.status} ${err.statusText}`, 'err', 4000);
       }
     });
   }

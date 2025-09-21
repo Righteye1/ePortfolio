@@ -1,46 +1,90 @@
-<!-- Add Trip row -->
-<div style="margin:12px 0; display:flex; gap:8px; align-items:center;">
-  <input placeholder="Title" [(ngModel)]="addForm.title" style="min-width:180px;">
-  <input placeholder="Location" [(ngModel)]="addForm.location" style="min-width:140px;">
-  <input placeholder="Description" [(ngModel)]="addForm.description" style="flex:1;">
-  <input type="number" placeholder="Price" [(ngModel)]="addForm.price" style="min-width:80px;">
-  <input placeholder="Date (optional, YYYY-MM-DD)" [(ngModel)]="addForm.date" style="min-width:150px;">
-  <button (click)="add()">Add Trip</button>
+<div class="container">
+  <div class="heading">
+    <div class="h1">Trips <span class="badge">Admin</span></div>
+    <div style="display:flex; gap:10px;">
+      <button class="btn btn-ghost btn-icon" (click)="toggleTheme()" title="Toggle theme">🌓</button>
+      <a class="btn btn-ghost" routerLink="/login">Login</a>
+    </div>
+  </div>
+
+  <div class="card">
+    <!-- Add Trip toolbar -->
+    <div class="toolbar">
+      <input class="input" placeholder="Title" [(ngModel)]="addForm.title">
+      <input class="input" placeholder="Location" [(ngModel)]="addForm.location">
+      <input class="input" placeholder="Description" [(ngModel)]="addForm.description" style="flex:1;">
+      <input class="input" type="number" placeholder="Price" [(ngModel)]="addForm.price">
+      <input class="input" type="date" [(ngModel)]="addForm.date">
+      <button class="btn btn-primary"
+              [disabled]="!addForm.title || creating || loading"
+              (click)="add()">
+        Add Trip
+      </button>
+    </div>
+
+    <!-- Table -->
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Title</th>
+          <th>Location</th>
+          <th>Description</th>
+          <th>Price</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr *ngIf="!loading && trips.length === 0">
+          <td colspan="5" class="empty">No trips yet. Add your first one above.</td>
+        </tr>
+
+        <tr *ngFor="let t of trips">
+          <!-- Read-only row -->
+          <ng-container *ngIf="editingId !== t['_id']; else editRow">
+            <td class="title">{{ t.title || 'Untitled Trip' }}</td>
+            <td>{{ t['location'] || '-' }}</td>
+            <td>{{ t.description || '-' }}</td>
+            <td>${{ t.price || 0 }}</td>
+            <td>
+              <div class="row-actions">
+                <button class="btn btn-ghost" (click)="startEdit(t)">Edit</button>
+                <button class="btn btn-danger"
+                        [disabled]="deletingId === t['_id']"
+                        (click)="remove(t)">
+                  Delete
+                </button>
+              </div>
+            </td>
+          </ng-container>
+
+          <!-- Editing row -->
+          <ng-template #editRow>
+            <td><input class="input" [(ngModel)]="editForm.title" placeholder="Title"></td>
+            <td><input class="input" [(ngModel)]="editForm['location']" placeholder="Location"></td>
+            <td><input class="input" [(ngModel)]="editForm.description" placeholder="Description"></td>
+            <td><input class="input" type="number" [(ngModel)]="editForm.price"></td>
+            <td>
+              <div class="row-actions">
+                <button class="btn btn-success" [disabled]="saving" (click)="saveEdit()">Save</button>
+                <button class="btn btn-ghost" [disabled]="saving" (click)="cancelEdit()">Cancel</button>
+              </div>
+            </td>
+          </ng-template>
+        </tr>
+      </tbody>
+    </table>
+  </div>
 </div>
 
-<!-- Trips table -->
-<table border="1" cellspacing="0" cellpadding="6" style="min-width:760px;">
-  <tr>
-    <th>Title</th>
-    <th>Location</th>
-    <th>Description</th>
-    <th>Price</th>
-    <th>Actions</th>
-  </tr>
+<!-- Loading overlay -->
+<div class="loading" *ngIf="loading">
+  <div class="spin"></div>
+</div>
 
-  <tr *ngFor="let t of trips">
-    <!-- read-only row -->
-    <ng-container *ngIf="editingId !== t['_id']; else editRow">
-      <td><strong>{{ t.title || 'Untitled Trip' }}</strong></td>
-      <td>{{ t['location'] || '-' }}</td>
-      <td>{{ t.description || '-' }}</td>
-      <td>${{ t.price || 0 }}</td>
-      <td>
-        <button (click)="startEdit(t)">Edit</button>
-        <button (click)="remove(t)">Delete</button>
-      </td>
-    </ng-container>
-
-    <!-- editing row -->
-    <ng-template #editRow>
-      <td><input [(ngModel)]="editForm.title" placeholder="Title"></td>
-      <td><input [(ngModel)]="editForm['location']" placeholder="Location"></td>
-      <td><input [(ngModel)]="editForm.description" placeholder="Description" style="width:320px;"></td>
-      <td><input type="number" [(ngModel)]="editForm.price" style="width:90px;"></td>
-      <td>
-        <button (click)="saveEdit()">Save</button>
-        <button (click)="cancelEdit()">Cancel</button>
-      </td>
-    </ng-template>
-  </tr>
-</table>
+<!-- Toasts -->
+<div class="toast-wrap">
+  <div *ngFor="let t of toasts" class="toast" [ngClass]="t.kind">
+    {{ t.msg }}
+  </div>
+</div>
