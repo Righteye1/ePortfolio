@@ -1,0 +1,9 @@
+h1 {
+  margin-bottom: 1rem;
+  font-size: 1.5rem;
+}
+
+app-trip-form {
+  display: block;
+  margin-bottom: 2rem;
+}

@@ -1,0 +1,73 @@
+.toolbar {
+  display: flex;
+  gap: .75rem;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+  .toolbar input,
+  .toolbar select {
+    padding: .5rem;
+  }
+
+.add-btn, .logout-btn {
+  padding: .5rem .75rem;
+}
+
+.spacer {
+  flex: 1;
+}
+/* pushes Logout to the right */
+
+.loading {
+  margin: .5rem 0;
+}
+
+.results {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+  .results th, .results td {
+    padding: .5rem .75rem;
+    border-bottom: 1px solid #3a3a3a;
+  }
+
+.actions-col {
+  width: 160px;
+}
+
+.paginator {
+  display: flex;
+  gap: .75rem;
+  align-items: center;
+  margin-top: 1rem;
+}
+
+.card {
+  border: 1px solid #3a3a3a;
+  border-radius: 8px;
+  padding: .75rem;
+  margin-bottom: 1rem;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: .5rem;
+}
+
+  .grid textarea {
+    grid-column: 1 / -1;
+    min-height: 72px;
+  }
+
+  .grid .actions {
+    grid-column: 1 / -1;
+    display: flex;
+    gap: .5rem;
+  }
+
+.edit-row td {
+  background: rgba(255,255,255,0.03);
+}

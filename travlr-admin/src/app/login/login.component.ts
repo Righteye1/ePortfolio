@@ -1,33 +1,51 @@
 import { Component } from '@angular/core';
+import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
-import { HttpClient } from '@angular/common/http';
+import { TripDataService } from '../trip-data.service';
 import { Router } from '@angular/router';
 
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [CommonModule, FormsModule],
-  templateUrl: './login.component.html'
+  imports: [CommonModule, ReactiveFormsModule],
+  templateUrl: './login.component.html',
+  styleUrls: ['./login.component.css']
 })
 export class LoginComponent {
-  username = '';
-  password = '';
-  error = '';
+  loginForm: FormGroup;
+  message = '';
 
-  constructor(private http: HttpClient, private router: Router) { }
-
-  login() {
-    this.http.post<{ token: string }>('http://localhost:3000/api/login', {
-      username: this.username,
-      password: this.password
-    }).subscribe({
-      next: (res) => {
-        localStorage.setItem('jwt', res.token);  // ← critical
-        this.error = '';
-        this.router.navigate(['/trips']);
-      },
-      error: () => this.error = 'Invalid credentials'
+  constructor(
+    private fb: FormBuilder,
+    private api: TripDataService,
+    private router: Router
+  ) {
+    this.loginForm = this.fb.group({
+      username: ['', Validators.required],
+      password: ['', Validators.required]
     });
   }
+
+  onSubmit() {
+    if (this.loginForm.invalid) return;
+
+    const { username, password } = this.loginForm.value;
+
+    this.api.login(username, password).subscribe({
+      next: () => {
+        this.message = 'Login successful!';
+        // go to Trips page after successful login
+        this.router.navigate(['/trips']);
+      },
+      error: () => {
+        this.message = 'Invalid credentials';
+      }
+    });
+  }
+
+  logout() {
+    this.api.logout();
+    this.message = 'Logged out';
+  }
 }
+

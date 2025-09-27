@@ -1,90 +1,88 @@
-<div class="container">
-  <div class="heading">
-    <div class="h1">Trips <span class="badge">Admin</span></div>
-    <div style="display:flex; gap:10px;">
-      <button class="btn btn-ghost btn-icon" (click)="toggleTheme()" title="Toggle theme">🌓</button>
-      <a class="btn btn-ghost" routerLink="/login">Login</a>
-    </div>
-  </div>
+<!-- Controls -->
+<div class="toolbar">
+  <input [formControl]="search" placeholder="Search trips..." />
 
-  <div class="card">
-    <!-- Add Trip toolbar -->
-    <div class="toolbar">
-      <input class="input" placeholder="Title" [(ngModel)]="addForm.title">
-      <input class="input" placeholder="Location" [(ngModel)]="addForm.location">
-      <input class="input" placeholder="Description" [(ngModel)]="addForm.description" style="flex:1;">
-      <input class="input" type="number" placeholder="Price" [(ngModel)]="addForm.price">
-      <input class="input" type="date" [(ngModel)]="addForm.date">
-      <button class="btn btn-primary"
-              [disabled]="!addForm.title || creating || loading"
-              (click)="add()">
-        Add Trip
-      </button>
-    </div>
+  <select (change)="setSort($any($event.target).value)">
+    <option value="createdAt:desc" [selected]="sort==='createdAt:desc'">Newest</option>
+    <option value="createdAt:asc" [selected]="sort==='createdAt:asc'">Oldest</option>
+    <option value="price:asc" [selected]="sort==='price:asc'">Price ↑</option>
+    <option value="price:desc" [selected]="sort==='price:desc'">Price ↓</option>
+    <option value="name:asc" [selected]="sort==='name:asc'">Name A–Z</option>
+    <option value="name:desc" [selected]="sort==='name:desc'">Name Z–A</option>
+  </select>
 
-    <!-- Table -->
-    <table class="table">
-      <thead>
-        <tr>
-          <th>Title</th>
-          <th>Location</th>
-          <th>Description</th>
-          <th>Price</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
+  <input placeholder="Destination (exact)" [value]="dest" (change)="setDest($any($event.target).value)" />
 
-      <tbody>
-        <tr *ngIf="!loading && trips.length === 0">
-          <td colspan="5" class="empty">No trips yet. Add your first one above.</td>
-        </tr>
+  <button class="add-btn" (click)="toggleAdd()">{{ adding ? 'Cancel' : 'Add Trip' }}</button>
 
-        <tr *ngFor="let t of trips">
-          <!-- Read-only row -->
-          <ng-container *ngIf="editingId !== t['_id']; else editRow">
-            <td class="title">{{ t.title || 'Untitled Trip' }}</td>
-            <td>{{ t['location'] || '-' }}</td>
-            <td>{{ t.description || '-' }}</td>
-            <td>${{ t.price || 0 }}</td>
-            <td>
-              <div class="row-actions">
-                <button class="btn btn-ghost" (click)="startEdit(t)">Edit</button>
-                <button class="btn btn-danger"
-                        [disabled]="deletingId === t['_id']"
-                        (click)="remove(t)">
-                  Delete
-                </button>
-              </div>
-            </td>
-          </ng-container>
+  <span class="spacer"></span>
 
-          <!-- Editing row -->
-          <ng-template #editRow>
-            <td><input class="input" [(ngModel)]="editForm.title" placeholder="Title"></td>
-            <td><input class="input" [(ngModel)]="editForm['location']" placeholder="Location"></td>
-            <td><input class="input" [(ngModel)]="editForm.description" placeholder="Description"></td>
-            <td><input class="input" type="number" [(ngModel)]="editForm.price"></td>
-            <td>
-              <div class="row-actions">
-                <button class="btn btn-success" [disabled]="saving" (click)="saveEdit()">Save</button>
-                <button class="btn btn-ghost" [disabled]="saving" (click)="cancelEdit()">Cancel</button>
-              </div>
-            </td>
-          </ng-template>
-        </tr>
-      </tbody>
-    </table>
-  </div>
+  <!-- Logout moved here -->
+  <button class="logout-btn" (click)="logout()">Logout</button>
 </div>
 
-<!-- Loading overlay -->
-<div class="loading" *ngIf="loading">
-  <div class="spin"></div>
+<!-- Add form -->
+<div *ngIf="adding" class="card">
+  <form [formGroup]="addForm" (ngSubmit)="saveAdd()" class="grid">
+    <input formControlName="name" placeholder="Title" required />
+    <input formControlName="destination" placeholder="Destination" required />
+    <input formControlName="price" type="number" placeholder="Price" />
+    <input formControlName="date" type="date" />
+    <textarea formControlName="description" placeholder="Description"></textarea>
+    <div class="actions">
+      <button type="submit" [disabled]="addForm.invalid">Save</button>
+      <button type="button" (click)="toggleAdd()">Cancel</button>
+    </div>
+  </form>
 </div>
 
-<!-- Toasts -->
-<div class="toast-wrap">
-  <div *ngFor="let t of toasts" class="toast" [ngClass]="t.kind">
-    {{ t.msg }}
-  </div>
+<div *ngIf="loading" class="loading">Loading…</div>
+
+<table class="results" *ngIf="!loading">
+  <thead>
+    <tr>
+      <th>Title</th>
+      <th>Location</th>
+      <th>Description</th>
+      <th>Price</th>
+      <th class="actions-col">Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    <ng-container *ngFor="let t of trips">
+      <tr *ngIf="editingId !== t._id">
+        <td>{{ t.name }}</td>
+        <td>{{ t.destination }}</td>
+        <td>{{ t.description }}</td>
+        <td>{{ t.price | currency }}</td>
+        <td class="actions-col">
+          <button (click)="startEdit(t)">Edit</button>
+          <button (click)="deleteTrip(t)">Delete</button>
+        </td>
+      </tr>
+
+      <!-- Edit row -->
+      <tr *ngIf="editingId === t._id" class="edit-row">
+        <td colspan="5">
+          <form [formGroup]="editForm" (ngSubmit)="saveEdit(t)" class="grid">
+            <input formControlName="name" placeholder="Title" required />
+            <input formControlName="destination" placeholder="Destination" required />
+            <input formControlName="price" type="number" placeholder="Price" />
+            <input formControlName="date" type="date" />
+            <textarea formControlName="description" placeholder="Description"></textarea>
+            <div class="actions">
+              <button type="submit" [disabled]="editForm.invalid">Save</button>
+              <button type="button" (click)="cancelEdit()">Cancel</button>
+            </div>
+          </form>
+        </td>
+      </tr>
+    </ng-container>
+  </tbody>
+</table>
+
+<div class="paginator" *ngIf="total > 0">
+  <button (click)="prevPage()" [disabled]="skip === 0">Prev</button>
+  <span>{{ skip + 1 }}–{{ Math.min(skip + limit, total) }} of {{ total }}</span>
+  <button (click)="nextPage()" [disabled]="skip + limit >= total">Next</button>
 </div>

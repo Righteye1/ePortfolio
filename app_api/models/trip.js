@@ -9,4 +9,12 @@ const TripSchema = new mongoose.Schema({
     date: { type: Date }
 }, { timestamps: true });
 
+
+TripSchema.index({ createdAt: -1 });                        // sort by newest
+TripSchema.index({ price: 1 });                             // sort/filter by price
+TripSchema.index({ destination: 1 });                       // filter by destination
+
+// Optional for large datasets: enable text search for "q"
+TripSchema.index({ name: 'text', destination: 'text', description: 'text' });
+
 module.exports = mongoose.model('Trip', TripSchema);

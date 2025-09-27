@@ -1,43 +1,40 @@
 import { Component } from '@angular/core';
+import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
+import { TripDataService } from '../trip-data.service';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
-import { Trip, TripDataService } from '../trip-data.service';
 
 @Component({
   selector: 'app-trip-form',
   standalone: true,
-  imports: [CommonModule, FormsModule],
-  templateUrl: './trip-form.component.html'
+  imports: [CommonModule, ReactiveFormsModule],
+  templateUrl: './trip-form.component.html',
+  styleUrls: ['./trip-form.component.css']
 })
 export class TripFormComponent {
-  // form model bound from the template
-  model: Trip = { title: '', location: '', description: '', price: 0, date: '' };
+  tripForm: FormGroup;
+  message = '';
 
-  constructor(private tripDataService: TripDataService) { }
+  constructor(private fb: FormBuilder, private api: TripDataService) {
+    this.tripForm = this.fb.group({
+      name: ['', Validators.required],          // ✅ name, not title
+      destination: ['', Validators.required],   // ✅ destination, not location
+      description: [''],
+      price: [0, [Validators.min(0)]],
+      date: ['']
+    });
+  }
 
-  addTrip() {
-    const payload: Trip = {
-      title: this.model.title ?? '',
-      location: (this.model as any).location ?? '',
-      description: this.model.description ?? '',
-      price: Number(this.model.price ?? 0),
-      date: (this.model as any).date
-    };
+  onSubmit() {
+    if (this.tripForm.invalid) return;
 
-    if (!payload.title.trim()) {
-      alert('Title is required.');
-      return;
-    }
-
-    this.tripDataService.addTrip(payload).subscribe({
-      next: () => {
-        // clear the form and visibly refresh
-        this.model = { title: '', location: '', description: '', price: 0, date: '' };
-        location.reload();
+    this.api.createTrip(this.tripForm.value).subscribe({
+      next: (resp) => {
+        this.message = 'Trip added successfully!';
+        this.tripForm.reset();
       },
       error: (err) => {
-        console.error('[POST error]', err);
-        alert(`Create failed: ${err.status} ${err.statusText}\n${JSON.stringify(err.error)}`);
+        this.message = 'Error adding trip';
+        console.error(err);
       }
     });
   }

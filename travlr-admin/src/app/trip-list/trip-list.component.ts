@@ -1,169 +1,174 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
+import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { debounceTime, distinctUntilChanged, startWith, switchMap } from 'rxjs';
 import { Trip, TripDataService } from '../trip-data.service';
-
-type Toast = { id: number; msg: string; kind: 'ok' | 'err' };
+import { Router } from '@angular/router';
 
 @Component({
   selector: 'app-trip-list',
   standalone: true,
-  imports: [CommonModule, FormsModule],
-  templateUrl: './trip-list.component.html'
+  imports: [CommonModule, ReactiveFormsModule],
+  templateUrl: './trip-list.component.html',
+  styleUrls: ['./trip-list.component.css']
 })
 export class TripListComponent implements OnInit {
   trips: Trip[] = [];
+  total = 0;
 
-  // Add row form
-  addForm: any = { title: '', location: '', description: '', price: 0, date: '' };
+  // server-side params
+  limit = 20;
+  skip = 0;
+  sort = 'createdAt:desc';
+  dest = '';
 
-  // Inline edit state
-  editingId: string | null = null;
-  editForm: any = {};
-
-  // UX helpers
+  search = new FormControl('');
   loading = false;
-  saving = false;
-  creating = false;
-  deletingId: string | null = null;
 
-  toasts: Toast[] = [];
-  private toastSeq = 1;
+  // Add / Edit state
+  adding = false;
+  addForm!: FormGroup;
 
-  constructor(private svc: TripDataService) { }
+  editingId: string | null = null;
+  editForm!: FormGroup;
 
-  ngOnInit() {
-    // restore theme
-    const saved = localStorage.getItem('theme') || 'dark';
-    document.documentElement.setAttribute('data-theme', saved);
+  Math = Math;
+
+  constructor(
+    private api: TripDataService,
+    private fb: FormBuilder,
+    private router: Router
+  ) { }
+
+  ngOnInit(): void {
+    this.addForm = this.fb.group({
+      name: ['', Validators.required],
+      destination: ['', Validators.required],
+      description: [''],
+      price: [0, [Validators.min(0)]],
+      date: ['']
+    });
+
+    this.editForm = this.fb.group({
+      name: ['', Validators.required],
+      destination: ['', Validators.required],
+      description: [''],
+      price: [0, [Validators.min(0)]],
+      date: ['']
+    });
+
+    this.search.valueChanges.pipe(
+      startWith(''),
+      debounceTime(300),
+      distinctUntilChanged(),
+      switchMap(q => {
+        this.loading = true;
+        this.skip = 0;
+        return this.api.getTrips({
+          limit: this.limit,
+          skip: this.skip,
+          sort: this.sort,
+          dest: this.dest || undefined,
+          q: (q || '').trim() || undefined
+        });
+      })
+    ).subscribe({
+      next: (resp) => {
+        this.loading = false;
+        this.total = resp.total;
+        this.trips = resp.data;
+      },
+      error: () => { this.loading = false; }
+    });
+  }
+
+  // paging/sort/filter
+  nextPage() {
+    if (this.skip + this.limit < this.total) {
+      this.skip += this.limit;
+      this.reload();
+    }
+  }
+  prevPage() {
+    if (this.skip >= this.limit) {
+      this.skip -= this.limit;
+      this.reload();
+    }
+  }
+  setSort(value: string) {
+    this.sort = value;
+    this.skip = 0;
     this.reload();
   }
-
-  /* ------------ Theme ------------ */
-  toggleTheme() {
-    const cur = document.documentElement.getAttribute('data-theme') || 'dark';
-    const next = cur === 'dark' ? 'light' : 'dark';
-    document.documentElement.setAttribute('data-theme', next);
-    localStorage.setItem('theme', next);
-    this.toast(`Theme: ${next}`, 'ok');
+  setDest(value: string) {
+    this.dest = value;
+    this.skip = 0;
+    this.reload();
   }
-
-  /* ------------ Toasts ------------ */
-  toast(msg: string, kind: 'ok' | 'err' = 'ok', ms = 2600) {
-    const id = this.toastSeq++;
-    this.toasts.push({ id, msg, kind });
-    setTimeout(() => this.toasts = this.toasts.filter(t => t.id !== id), ms);
-  }
-
-  /* ------------ Data ------------ */
   reload() {
     this.loading = true;
-    this.svc.getTrips().subscribe({
-      next: (list) => { this.trips = list || []; this.loading = false; },
-      error: (err) => {
+    this.api.getTrips({
+      limit: this.limit,
+      skip: this.skip,
+      sort: this.sort,
+      dest: this.dest || undefined,
+      q: (this.search.value || '').trim() || undefined
+    }).subscribe({
+      next: (resp) => {
         this.loading = false;
-        console.error('[GET trips error]', err);
-        this.toast(`Failed to load trips: ${err.status} ${err.statusText}`, 'err', 4000);
-      }
-    });
-  }
-
-  // Begin editing a row
-  startEdit(t: any) {
-    this.editingId = t?._id ?? null;
-    const dateStr = t?.date ? new Date(t.date).toISOString().slice(0, 10) : '';
-    this.editForm = {
-      _id: t?._id,
-      title: (t?.title ?? '').trim(),
-      location: (t?.location ?? '').trim(),
-      description: (t?.description ?? '').trim(),
-      price: Number(t?.price ?? 0),
-      date: dateStr
-    };
-  }
-
-  cancelEdit() {
-    this.editingId = null;
-    this.editForm = {};
-  }
-
-  // Helper: build payload
-  private buildPayload(src: any): any {
-    const payload: any = {
-      title: (src.title ?? '').trim(),
-      location: (src.location ?? '').trim(),
-      description: (src.description ?? '').trim(),
-      price: Number(src.price ?? 0)
-    };
-    const d = (src.date ?? '').trim();
-    if (d) {
-      const iso = new Date(`${d}T00:00:00.000Z`).toISOString();
-      if (!isNaN(Date.parse(iso))) payload.date = iso;
-    }
-    return payload;
-  }
-
-  /* ------------ Save / Create / Delete ------------ */
-  saveEdit() {
-    const id: string | undefined = this.editForm?._id || (this.editingId as any);
-    if (!id) { this.toast('Cannot save: row has no _id', 'err'); return; }
-
-    const payload = this.buildPayload(this.editForm);
-    if (!payload.title) { this.toast('Title is required', 'err'); return; }
-
-    this.saving = true;
-    this.svc.updateTrip(id, payload).subscribe({
-      next: () => {
-        this.saving = false;
-        this.cancelEdit();
-        this.reload();
-        this.toast('Trip updated', 'ok');
+        this.total = resp.total;
+        this.trips = resp.data;
       },
-      error: (err) => {
-        this.saving = false;
-        console.error('[PUT] error', err);
-        this.toast(`Save failed: ${err.status} ${err.statusText}`, 'err', 4000);
-      }
+      error: () => { this.loading = false; }
     });
   }
 
-  add() {
-    const payload = this.buildPayload(this.addForm);
-    if (!payload.title) { this.toast('Title is required', 'err'); return; }
-
-    this.creating = true;
-    this.svc.addTrip(payload).subscribe({
-      next: () => {
-        this.creating = false;
-        this.addForm = { title: '', location: '', description: '', price: 0, date: '' };
-        this.reload();
-        this.toast('Trip created', 'ok');
-      },
-      error: (err) => {
-        this.creating = false;
-        console.error('[POST] error', err);
-        this.toast(`Create failed: ${err.status} ${err.statusText}`, 'err', 4000);
-      }
+  // ---------- Add ----------
+  toggleAdd() {
+    this.adding = !this.adding;
+    this.addForm.reset({ name: '', destination: '', description: '', price: 0, date: '' });
+  }
+  saveAdd() {
+    if (this.addForm.invalid) return;
+    this.api.createTrip(this.addForm.value).subscribe({
+      next: () => { this.adding = false; this.reload(); },
+      error: (err) => { alert('Failed to add trip. Are you logged in?'); console.error(err); }
     });
   }
 
-  remove(t: any) {
-    const id = t?._id;
-    if (!id) { this.toast('Cannot delete: row has no _id', 'err'); return; }
-    if (!confirm(`Delete "${t.title || 'this trip'}"?`)) return;
-
-    this.deletingId = id;
-    this.svc.deleteTrip(id).subscribe({
-      next: () => {
-        this.deletingId = null;
-        this.reload();
-        this.toast('Trip deleted', 'ok');
-      },
-      error: (err) => {
-        this.deletingId = null;
-        console.error('[DELETE] error', err);
-        this.toast(`Delete failed: ${err.status} ${err.statusText}`, 'err', 4000);
-      }
+  // ---------- Edit ----------
+  startEdit(t: Trip) {
+    this.editingId = t._id;
+    this.editForm.setValue({
+      name: t.name || '',
+      destination: t.destination || '',
+      description: t.description || '',
+      price: t.price ?? 0,
+      date: (t.date ? String(t.date).substring(0, 10) : '')
     });
+  }
+  cancelEdit() { this.editingId = null; }
+  saveEdit(t: Trip) {
+    if (!this.editingId || this.editForm.invalid) return;
+    this.api.updateTrip(this.editingId, this.editForm.value).subscribe({
+      next: () => { this.editingId = null; this.reload(); },
+      error: (err) => { alert('Failed to update trip. Are you logged in?'); console.error(err); }
+    });
+  }
+
+  // ---------- Delete ----------
+  deleteTrip(t: Trip) {
+    if (!confirm(`Delete "${t.name}"?`)) return;
+    this.api.deleteTrip(t._id).subscribe({
+      next: () => this.reload(),
+      error: (err) => { alert('Failed to delete trip. Are you logged in?'); console.error(err); }
+    });
+  }
+
+  // ---------- Logout (moved here) ----------
+  logout() {
+    this.api.logout();
+    this.router.navigate(['/login']);
   }
 }
+
